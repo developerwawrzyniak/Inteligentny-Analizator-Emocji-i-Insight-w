@@ -1,0 +1,1 @@
+# Inteligentny-Analizator-Emocji-i-Insight-w
