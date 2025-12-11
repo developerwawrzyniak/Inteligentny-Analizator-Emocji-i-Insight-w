@@ -1,0 +1,11 @@
+review_id,review_text,source,date
+1,"The product arrived quickly and the packaging was great. I'm very satisfied!",google,2024-01-12
+2,"Terrible customer service. I waited 40 minutes on the phone and got no help.",google,2024-01-14
+3,"Average quality. Not bad, but definitely not worth the price.",google,2024-01-15
+4,"Absolutely love it! Works better than expected and the support team was super helpful.",facebook,2024-01-20
+5,"The delivery was late again. This is the third time! Very disappointed.",google,2024-01-22
+6,"Świetny produkt, działa perfekcyjnie! Polecam wszystkim!",google,2024-01-25
+7,"Nie polecam. Produkt przyszedł uszkodzony i musiałem go zwrócić.",allegro,2024-01-28
+8,"Good value for money. Exactly what I was looking for!",amazon,2024-02-02
+9,"The app keeps crashing. Please fix it ASAP.",google,2024-02-03
+10,"Fantastic customer service! They responded within minutes and solved my problem.",facebook,2024-02-05
