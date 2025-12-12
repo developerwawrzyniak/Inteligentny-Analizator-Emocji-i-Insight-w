@@ -8,8 +8,8 @@ def run(input_path, output_path):
     print(f"Loading: {input_path}")
     df = pd.read_csv(input_path)
 
-    if "clean_review" not in df.columns:
-        raise ValueError("Input CSV must contain a 'clean_review' column.")
+    if "clean_text" not in df.columns:
+        raise ValueError("Input CSV must contain a 'clean_text' column.")
 
     print("Loading sentiment model...")
     model_name = "cardiffnlp/twitter-roberta-base-sentiment"
@@ -31,7 +31,7 @@ def run(input_path, output_path):
     sentiments = []
     scores = []
 
-    for out in tqdm(sentiment_pipe(df["clean_review"].tolist()), total=len(df)):
+    for out in tqdm(sentiment_pipe(df["clean_text"].tolist()), total=len(df)):
         sentiments.append(out["label"])
         scores.append(out["score"])
 
