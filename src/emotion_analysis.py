@@ -1,53 +1,56 @@
 import argparse
 import pandas as pd
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from tqdm import tqdm
+
+MODEL_NAME = "j-hartmann/emotion-english-distilroberta-base"
 
 
 def run(input_path, output_path):
-    print(f"Loading: {input_path}")
+    print(f"Loading data: {input_path}")
     df = pd.read_csv(input_path)
 
     if "clean_text" not in df.columns:
-        raise ValueError("Input CSV must contain a 'clean_text' column.")
+        raise ValueError("Input CSV must contain 'clean_text' column.")
 
     print("Loading emotion model...")
-    model_name = "j-hartmann/emotion-english-distilroberta-base"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+    model.eval()
 
-    emotion_pipe = pipeline(
-        "text-classification",
-        model=model,
-        tokenizer=tokenizer,
-        truncation=True,
-        max_length=256,
-        batch_size=16,
-        return_all_scores=True,
-    )
+    emotions = model.config.id2label
+    emotion_scores = {label: [] for label in emotions.values()}
+    dominant_emotions = []
 
-    emotions = []
-    emotion_scores = []
+    print("Running emotion detection...")
+    for text in tqdm(df["clean_text"].astype(str)):
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=128)
 
-    print("Running emotion analysis...")
+        with torch.no_grad():
+            outputs = model(**inputs)
+            probs = torch.softmax(outputs.logits, dim=1).squeeze()
 
-    for out in tqdm(emotion_pipe(df["clean_text"].tolist()), total=len(df)):
-        # out to lista dictów z emocjami i score
-        sorted_out = sorted(out, key=lambda x: x["score"], reverse=True)
-        emotions.append(sorted_out[0]["label"])
-        emotion_scores.append({d["label"]: d["score"] for d in sorted_out})
+        scores = probs.tolist()
+        for i, label in emotions.items():
+            emotion_scores[label].append(scores[i])
 
-    df["emotion"] = emotions
-    df["emotion_scores"] = emotion_scores
+        dominant_emotions.append(emotions[int(probs.argmax())])
 
-    print(f"Saving output to {output_path}")
+    for emotion, values in emotion_scores.items():
+        df[f"emotion_{emotion}"] = values
+
+    df["dominant_emotion"] = dominant_emotions
+
+    print(f"Saving output to: {output_path}")
     df.to_csv(output_path, index=False)
+    print("✅ Emotion analysis completed!")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input", type=str, required=True)
-    parser.add_argument("--output", type=str, required=True)
+    parser = argparse.ArgumentParser(description="Emotion Analysis")
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     run(args.input, args.output)
