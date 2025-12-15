@@ -1,36 +1,33 @@
 import pandas as pd
-from openai import OpenAI
 
-client = OpenAI()
+INSIGHT_TEMPLATES = {
+    "anger": "Customers are frustrated by {topic}",
+    "sadness": "Customers feel disappointed with {topic}",
+    "joy": "Customers are satisfied with {topic}",
+    "fear": "Customers are concerned about {topic}",
+    "surprise": "Customers are surprised by {topic}",
+    "neutral": "Customers perceive {topic} as informational rather than emotional",
+}
 
 
-def generate_summary(csv_path):
-    df = pd.read_csv(csv_path)
+def generate_insight(topic: str, emotion: str) -> str:
+    template = INSIGHT_TEMPLATES.get(
+        emotion, "Customers express mixed feelings about {topic}"
+    )
+    return template.format(topic=topic)
 
-    sample = df[["topic_summary", "dominant_emotion", "review_text"]].head(50)
 
-    prompt = f"""
-Analyze the following customer feedback.
+def run(input_path: str, output_path: str):
+    df = pd.read_csv(input_path)
 
-Data:
-{sample.to_string(index=False)}
-
-Tasks:
-1. What customers like the most
-2. Main complaints
-3. Top 3 actionable improvements
-
-Return bullet points.
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4.1", messages=[{"role": "user", "content": prompt}]
+    df["example_insight"] = df.apply(
+        lambda row: generate_insight(row["topic_summary"], row["dominant_emotion"]),
+        axis=1,
     )
 
-    return response.choices[0].message.content
+    df.to_csv(output_path, index=False)
+    print(f"Saved summarized insights to {output_path}")
 
 
 if __name__ == "__main__":
-    summary = generate_summary("data/emotion_reviews.csv")
-    print("\n📊 AI SUMMARY:\n")
-    print(summary)
+    run("data/topic_emotion_table.csv", "data/topic_emotion_insights.csv")

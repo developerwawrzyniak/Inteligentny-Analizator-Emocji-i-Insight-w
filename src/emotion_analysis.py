@@ -7,11 +7,14 @@ from transformers import pipeline
 # -------------------------
 # Tutaj używamy gotowego pipeline Hugging Face do analizy emocji
 # Możesz zmienić model np. "j-hartmann/emotion-english-distilroberta-base"
-emotion_analyzer = pipeline("text-classification", 
-                            model="j-hartmann/emotion-english-distilroberta-base", 
-                            return_all_scores=True)
+emotion_analyzer = pipeline(
+    "text-classification",
+    model="j-hartmann/emotion-english-distilroberta-base",
+    return_all_scores=True,
+)
 
 EMOTIONS = ["joy", "anger", "sadness", "fear", "surprise", "neutral"]
+
 
 def predict_emotion(text):
     """
@@ -29,9 +32,10 @@ def predict_emotion(text):
         if emotion_label not in EMOTIONS:
             emotion_label = "neutral"
         return emotion_label, score
-    except Exception as e:
+    except Exception:
         # W przypadku problemu ustaw neutral
         return "neutral", 0.0
+
 
 # -------------------------
 # RUN FUNCTION
@@ -41,8 +45,14 @@ def run(input_path, output_path):
     df = pd.read_csv(input_path)
 
     # Sprawdzenie wymaganych kolumn
-    if "clean_text" not in df.columns or "topic_id" not in df.columns or "topic_summary" not in df.columns:
-        raise ValueError("Input CSV must contain 'clean_text', 'topic_id', and 'topic_summary' columns.")
+    if (
+        "clean_text" not in df.columns
+        or "topic_id" not in df.columns
+        or "topic_summary" not in df.columns
+    ):
+        raise ValueError(
+            "Input CSV must contain 'clean_text', 'topic_id', and 'topic_summary' columns."
+        )
 
     print("Running emotion analysis...")
 
@@ -60,6 +70,7 @@ def run(input_path, output_path):
     print(f"Saving output to {output_path}")
     df.to_csv(output_path, index=False)
     print("Done.")
+
 
 # -------------------------
 # MAIN

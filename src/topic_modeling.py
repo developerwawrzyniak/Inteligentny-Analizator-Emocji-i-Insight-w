@@ -78,7 +78,11 @@ def run(input_path, output_path, n_topics=5):
         top_words = [words[i] for i in topic.argsort()[-5:][::-1]]
         topic_labels[topic_idx] = ", ".join(top_words)
 
-    df["topic_summary"] = df["topic_id"].map(topic_labels)
+    # Assign keywords and a human-readable short label for each document
+    df["topic_keywords"] = [topic_labels[i] for i in topic_ids]
+    # Keep the detailed keywords as the topic summary and create a short human label
+    df["topic_summary"] = df["topic_keywords"]
+    df["topic_label"] = df["topic_keywords"].apply(label_topic)
 
     # -------------------------
     # SAVE
@@ -101,3 +105,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     run(args.input, args.output, args.n_topics)
+
+
+def label_topic(keywords: str) -> str:
+    if "eating" in keywords:
+        return "Food & Lifestyle"
+    if "intelligence" in keywords:
+        return "AI & Technology"
+    return "General Feedback"

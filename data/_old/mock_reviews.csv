@@ -1,0 +1,16 @@
+clean_text,topic_id,topic_summary,dominant_emotion,emotion_score
+"Delivery was delayed again and customer support ignored my emails",0,delivery issues,anger,0.78
+"My package arrived late and nobody explained why",0,delivery issues,anger,0.72
+"Support agent was friendly and solved my problem quickly",1,customer support,joy,0.81
+"I am happy with how fast support responded",1,customer support,joy,0.74
+"The price is too high for the quality offered",2,pricing,sadness,0.63
+"I feel disappointed because prices increased again",2,pricing,sadness,0.58
+"The app interface looks modern and easy to use",3,product usability,joy,0.66
+"Navigation is intuitive and smooth",3,product usability,joy,0.61
+"Food quality has improved significantly over the last month",4,food quality,joy,0.77
+"I love the new menu options available",4,food quality,joy,0.69
+"AI features are impressive and very useful",5,AI features,joy,0.82
+"The intelligence of the system keeps getting better",5,AI features,joy,0.75
+"Overall, I'm satisfied with my experience",6,general feedback,joy,0.64
+"I'm content with the service provided",6,general feedback,joy,0.60
+                     
