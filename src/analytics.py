@@ -93,7 +93,8 @@ def generate_ai_insights(
         )
         return f"Topic about {kws}.{emotion_str} {int(row.get('documents_count', 0))} documents. Suggested action: investigate top keywords and collect feedback."
 
-    insights = []
+    summaries = []
+    recommendations = []
     for _, row in topic_df.iterrows():
         try:
             if key:
@@ -112,10 +113,27 @@ def generate_ai_insights(
                 ai_text = _fallback_summary(row)
         except Exception:
             ai_text = _fallback_summary(row)
-        insights.append(ai_text)
+
+        # Split AI text into summary + recommendations if possible
+        if "recommend" in ai_text.lower():
+            # naive split on 'recommend' token
+            parts = (
+                ai_text.split("Recommendations:")
+                if "Recommendations:" in ai_text
+                else ai_text.split("recommend")
+            )
+            summary = parts[0].strip()
+            recs = parts[1].strip() if len(parts) > 1 else ""
+        else:
+            summary = ai_text
+            recs = ""
+
+        summaries.append(summary)
+        recommendations.append(recs)
 
     topic_df = topic_df.copy()
-    topic_df["ai_insight"] = insights
+    topic_df["ai_summary"] = summaries
+    topic_df["ai_recommendations"] = recommendations
     return topic_df
 
 
@@ -180,14 +198,14 @@ def generate_ml_insight_for_topic(
     dominant_emotion: str = "N/A",
     emotion_score: float | None = None,
     n_sentences: int = 2,
-) -> str:
+) -> tuple[str, str]:
     """
     Generate an extractive, local ML-derived summary for a single topic using sentence-transformers.
-    Returns a short client-facing summary + 1-2 recommendations.
+    Returns a tuple (summary, recommendations) where summary is 1-2 concise sentences and recommendations is a short semicolon-separated string.
     """
 
     if not texts:
-        return "No documents available for this topic."
+        return "No documents available for this topic.", "No recommendations."
 
     # collect sentences from texts
     sentences = []
@@ -196,46 +214,48 @@ def generate_ml_insight_for_topic(
 
     if not sentences:
         # fall back to short join
-        base = " ".join(texts[:2])
-        return base if len(base) < 300 else base[:297] + "..."
-
-    # if modelo available use embeddings
-    if _ST_MODEL is not None:
-        try:
-            embeds = _ST_MODEL.encode(sentences, convert_to_numpy=True)
-            centroid = np.mean(embeds, axis=0, keepdims=True)
-            # cosine similarity to centroid
-            sims = (embeds @ centroid.T).squeeze() / (
-                np.linalg.norm(embeds, axis=1) * np.linalg.norm(centroid)
-            )
-            top_idx = sims.argsort()[::-1][:n_sentences]
-            top_sentences = [sentences[i] for i in top_idx]
-            summary = " ".join(top_sentences)
-        except Exception:
-            summary = " ".join(sentences[:n_sentences])
+        summary = " ".join(texts[:2])
     else:
-        # model not available; deterministic fallback
-        summary = " ".join(sentences[:n_sentences])
+        # if model available use embeddings
+        if _ST_MODEL is not None:
+            try:
+                embeds = _ST_MODEL.encode(sentences, convert_to_numpy=True)
+                centroid = np.mean(embeds, axis=0, keepdims=True)
+                sims = (embeds @ centroid.T).squeeze() / (
+                    np.linalg.norm(embeds, axis=1) * np.linalg.norm(centroid)
+                )
+                top_idx = sims.argsort()[::-1][:n_sentences]
+                top_sentences = [sentences[i] for i in top_idx]
+                summary = " ".join(top_sentences)
+            except Exception:
+                summary = " ".join(sentences[:n_sentences])
+        else:
+            summary = " ".join(sentences[:n_sentences])
+
+    # keep the summary concise
+    summary = summary.strip()
+    if len(summary) > 220:
+        summary = summary[:217].rstrip() + "..."
 
     # Recommendations based on emotion and keywords
     recs = []
     emo = (dominant_emotion or "").lower()
     if emo == "joy":
-        recs.append("Amplify this positive feedback in marketing")
+        recs.append("Amplify positive feedback in marketing")
     elif emo in ("anger", "fear"):
-        recs.append("Investigate root causes and gather detailed feedback")
+        recs.append("Investigate root causes and collect detailed feedback")
     elif emo == "sadness":
         recs.append("Provide empathetic communication and support resources")
     elif emo == "surprise":
-        recs.append("Explore what surprised users and replicate the success")
+        recs.append("Explore surprising feedback and replicate successful elements")
     else:
         recs.append("Monitor sentiment and collect more feedback")
 
     kw = (keywords or "").lower()
     if "eating" in kw or "food" in kw:
-        recs.append("Consider product tips or educational content about healthy eating")
+        recs.append("Offer product tips or educational content about healthy eating")
     if "intelligence" in kw or "ai" in kw:
-        recs.append("Produce explanatory content or demos for AI features")
+        recs.append("Produce clear explanatory content or demos for AI features")
     if "change" in kw or "new" in kw:
         recs.append("Communicate upcoming changes clearly to users")
 
@@ -248,37 +268,38 @@ def generate_ml_insight_for_topic(
 
     rec_text = "; ".join(recs) if recs else "No immediate action suggested."
 
-    insight = f"{summary} Recommendations: {rec_text}."
-    if len(insight) > 300:
-        insight = insight[:297] + "..."
-
-    return insight
+    return summary, rec_text
 
 
 def generate_ml_insights(topic_df: pd.DataFrame, n_sentences: int = 2) -> pd.DataFrame:
     """
     Generate ML-based insights for each topic row and add `ai_insight` column (overwrites existing).
     """
-    insights = []
+    summaries = []
+    recommendations = []
     for _, row in topic_df.iterrows():
-        # try to read sample_texts first, else rely on no. of documents
+        # Prefer full documents list if available (better summaries), else fall back to sample_texts
         texts = []
-        if row.get("sample_texts"):
+        if row.get("documents"):
+            texts = row.get("documents")
+        elif row.get("sample_texts"):
             # split sample_texts by ' | '
             texts = [
                 s.strip() for s in str(row.get("sample_texts")).split("|") if s.strip()
             ]
-        # if still empty, return small list using topic label
+        # if still empty, return small list using topic summary
         if not texts:
             texts = [str(row.get("topic_summary", ""))]
-        insight = generate_ml_insight_for_topic(
+        summary, recs = generate_ml_insight_for_topic(
             texts,
             keywords=row.get("topic_keywords", ""),
             dominant_emotion=row.get("dominant_emotion", "N/A"),
             emotion_score=row.get("emotion_score"),
             n_sentences=n_sentences,
         )
-        insights.append(insight)
+        summaries.append(summary)
+        recommendations.append(recs)
     td = topic_df.copy()
-    td["ai_insight"] = insights
+    td["ai_summary"] = summaries
+    td["ai_recommendations"] = recommendations
     return td

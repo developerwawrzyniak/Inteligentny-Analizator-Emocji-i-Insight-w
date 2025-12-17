@@ -59,14 +59,22 @@ if total_docs > 0:
 else:
     topic_group["percentage"] = 0.0
 
-# Add sample texts (up to 3 per topic)
+# Add sample texts (up to 3 per topic) and the full documents per topic
 samples = (
     df_out.groupby("topic_id")["clean_text"]
     .apply(lambda s: " | ".join(s.astype(str).head(3).tolist()))
     .reset_index(name="sample_texts")
 )
 
+# full documents list for better ML summaries
+documents = (
+    df_out.groupby("topic_id")["clean_text"]
+    .apply(lambda s: s.astype(str).tolist())
+    .reset_index(name="documents")
+)
+
 topic_df = topic_group.merge(samples, on="topic_id", how="left")
+topic_df = topic_df.merge(documents, on="topic_id", how="left")
 
 # If emotion columns exist, compute per-topic emotion summary using existing helper
 if "dominant_emotion" in df_out.columns and "emotion_score" in df_out.columns:
@@ -132,10 +140,13 @@ def regenerate_ml(n_clicks, topic_id, table_data):
     preload_sentence_model()
 
     try:
-        new_insight = generate_ml_insight_for_topic(
+        new_summary, new_recs = generate_ml_insight_for_topic(
             texts, keywords=keywords, dominant_emotion=emo, emotion_score=score
         )
-        df_table.loc[df_table["topic_id"] == int(topic_id), "ai_insight"] = new_insight
+        df_table.loc[df_table["topic_id"] == int(topic_id), "ai_summary"] = new_summary
+        df_table.loc[df_table["topic_id"] == int(topic_id), "ai_recommendations"] = (
+            new_recs
+        )
         status = f"Regenerated insight for topic {topic_id}."
     except Exception as e:
         status = f"Failed to generate insight: {e}"
@@ -157,6 +168,14 @@ topic_df["samples_preview"] = (
     .fillna("")
     .apply(lambda s: s if len(s) <= 200 else s[:197] + "...")
 )
+# create a short preview of full documents (first up to 5)
+if "documents" in topic_df.columns:
+    topic_df["documents_preview"] = topic_df["documents"].apply(
+        lambda docs: " | ".join(docs[:5]) if isinstance(docs, list) and docs else ""
+    )
+else:
+    topic_df["documents_preview"] = ""
+
 # friendly strings
 topic_df["percentage_display"] = topic_df["percentage"].apply(lambda v: f"{v:.1f}%")
 topic_df["emotion_score_display"] = topic_df["emotion_score"].apply(
@@ -179,10 +198,11 @@ try:
     else:
         topic_df = generate_ml_insights(topic_df)
 except Exception:
-    # On failure, ensure ai_insight exists with fallback text
-    topic_df["ai_insight"] = topic_df.apply(
-        lambda r: f"Topic {r.get('topic_label')}: {r.get('topic_keywords')}.", axis=1
+    # On failure, ensure ai_summary/ai_recommendations exist with fallback text
+    topic_df["ai_summary"] = topic_df.apply(
+        lambda r: f"Topic {r.get('topic_label')}: {r.get('topic_keywords')}", axis=1
     )
+    topic_df["ai_recommendations"] = ""
 
 # Ensure keywords column exists
 if "topic_keywords" not in topic_df.columns:
@@ -195,18 +215,28 @@ table_columns = [
     {"name": "Keywords", "id": "topic_keywords"},
     {"name": "Share", "id": "percentage_display"},
     {"name": "Documents", "id": "documents_count", "type": "numeric"},
+    {"name": "Top Documents", "id": "documents_preview"},
     {"name": "Dominant Emotion", "id": "dominant_emotion"},
     {"name": "Emotion Score", "id": "emotion_score_display"},
     {"name": "Samples", "id": "samples_preview"},
-    {"name": "AI Insight", "id": "ai_insight"},
+    {"name": "Summary", "id": "ai_summary"},
+    {"name": "Recommendations", "id": "ai_recommendations"},
 ]
 
-# Tooltips (show full keywords and insight on hover)
+# Tooltips (show full keywords, summary and documents preview on hover)
 tooltip_data = []
 for row in topic_df.to_dict("records"):
     td = {}
     td["topic_keywords"] = {"value": row.get("topic_keywords", ""), "type": "text"}
-    td["ai_insight"] = {"value": row.get("ai_insight", ""), "type": "text"}
+    td["ai_summary"] = {"value": row.get("ai_summary", ""), "type": "text"}
+    td["ai_recommendations"] = {
+        "value": row.get("ai_recommendations", ""),
+        "type": "text",
+    }
+    td["documents_preview"] = {
+        "value": row.get("documents_preview", ""),
+        "type": "text",
+    }
     tooltip_data.append(td)
 
 # Pie chart (dark theme)
@@ -273,7 +303,7 @@ app.layout = html.Div(
             dash_table.DataTable(
                 id="topics-table",
                 columns=table_columns,
-                data=topic_df.to_dict("records"),
+                data=topic_df.drop(columns=["documents"]).to_dict("records"),
                 page_size=10,
                 sort_action="native",
                 filter_action="native",
