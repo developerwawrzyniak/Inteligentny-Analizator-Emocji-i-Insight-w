@@ -1,5 +1,6 @@
 import pandas as pd
-from dash import Dash, html, dash_table
+from dash import Dash, html
+from dash import dash_table
 from analytics import build_topic_emotion_table
 
 df = pd.read_csv("data/output_with_emotions.csv")
@@ -11,11 +12,10 @@ app.layout = html.Div(
     [
         html.H1("Topic → Emotion Insights"),
         dash_table.DataTable(
-            columns=[{"name": c, "id": c} for c in table_df.columns],
             data=table_df.to_dict("records"),
-            style_table={"overflowX": "auto"},
-            style_cell={"textAlign": "left", "padding": "8px"},
-            style_header={"fontWeight": "bold"},
+            columns=[{"name": c, "id": c} for c in table_df.columns],
+            style_table={"width": "90%"},
+            style_cell={"textAlign": "left"},
             page_size=10,
         ),
     ]
