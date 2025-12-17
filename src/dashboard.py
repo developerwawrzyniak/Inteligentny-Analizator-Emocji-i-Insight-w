@@ -1,25 +1,86 @@
 import pandas as pd
-from dash import Dash, html
-from dash import dash_table
-from analytics import build_topic_emotion_table
+import dash
+from dash import html, dcc
+import plotly.express as px
 
-df = pd.read_csv("data/output_with_emotions.csv")
-table_df = build_topic_emotion_table(df)
+# =========================
+# Load data
+# =========================
+DATA_PATH = "data/topic_emotion_insights.csv"
+df = pd.read_csv(DATA_PATH)
 
-app = Dash(__name__)
+# =========================
+# Formatting for table
+# =========================
+df["avg_intensity"] = df["avg_intensity"].round(2)
+df["percent_reviews"] = df["percent_reviews"].astype(int)
 
-app.layout = html.Div(
-    [
-        html.H1("Topic → Emotion Insights"),
-        dash_table.DataTable(
-            data=table_df.to_dict("records"),
-            columns=[{"name": c, "id": c} for c in table_df.columns],
-            style_table={"width": "90%"},
-            style_cell={"textAlign": "left"},
-            page_size=10,
-        ),
-    ]
+# =========================
+# Charts
+# =========================
+
+emotion_chart = px.bar(
+    df,
+    x="dominant_emotion",
+    y="percent_reviews",
+    color="dominant_emotion",
+    title="Emotion Distribution by Topic (%)",
 )
 
+topic_chart = px.bar(
+    df, x="topic", y="percent_reviews", title="Topic Importance (% of Reviews)"
+)
+
+# =========================
+# Dash App
+# =========================
+app = dash.Dash(__name__)
+
+app.layout = html.Div(
+    style={"padding": "20px", "fontFamily": "Arial"},
+    children=[
+        html.H1("Customer Feedback – Topic & Emotion Insights"),
+        html.Hr(),
+        html.H2("Overview"),
+        dcc.Graph(figure=emotion_chart),
+        dcc.Graph(figure=topic_chart),
+        html.Hr(),
+        html.H2("Topic – Emotion Table"),
+        html.Table(
+            style={"width": "100%", "borderCollapse": "collapse", "marginTop": "20px"},
+            children=[
+                html.Thead(
+                    html.Tr(
+                        [
+                            html.Th("Topic"),
+                            html.Th("Dominant Emotion"),
+                            html.Th("Avg Intensity"),
+                            html.Th("% Reviews"),
+                            html.Th("Insight"),
+                        ]
+                    )
+                ),
+                html.Tbody(
+                    [
+                        html.Tr(
+                            [
+                                html.Td(row["topic"]),
+                                html.Td(row["dominant_emotion"]),
+                                html.Td(f"{row['avg_intensity']:.2f}"),
+                                html.Td(f"{row['percent_reviews']}%"),
+                                html.Td(row["example_insight"]),
+                            ]
+                        )
+                        for _, row in df.iterrows()
+                    ]
+                ),
+            ],
+        ),
+    ],
+)
+
+# =========================
+# Run
+# =========================
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run_server(debug=True)

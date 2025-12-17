@@ -1,0 +1,9 @@
+clean_text,topic_id,topic_keywords,emotion,intensity
+The delivery was very late and I am angry.,0,"customer, quality, lot",anger,0.51
+Customer support was very helpful and friendly.,0,"customer, quality, lot",joy,0.85
+Prices are too high for the quality.,2,"quality, interface, app",neutral,0.0
+The app interface is confusing and frustrating.,2,"quality, interface, app",anger,0.59
+Great experience with customer service.,0,"customer, quality, lot",joy,0.62
+Food quality has improved a lot recently.,0,"customer, quality, lot",joy,0.48
+AI features are impressive and useful.,1,"useful, ai, features",joy,0.74
+The system's intelligence keeps improving.,2,"quality, interface, app",joy,0.71

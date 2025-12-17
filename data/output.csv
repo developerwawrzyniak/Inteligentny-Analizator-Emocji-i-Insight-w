@@ -1,21 +1,10 @@
-clean_text,topic_id,topic_label
-I love reading books about science and technology.,1,"better, eating, wellbeing"
-Artificial intelligence is transforming the world.,0,"artificial, change, intelligence"
-Yesterday I went hiking in the mountains and it was amazing.,1,"better, eating, wellbeing"
-Python programming is very popular among data scientists.,0,"artificial, change, intelligence"
-Traveling to new countries is a great way to learn about cultures.,2,"better, new, way"
-Healthy eating habits improve overall wellbeing.,1,"better, eating, wellbeing"
-Music has the power to change our mood instantly.,2,"better, new, way"
-The new movie received excellent reviews from critics.,2,"better, new, way"
-Learning a new language opens up many opportunities.,0,"artificial, change, intelligence"
-Climate change is one of the biggest challenges of our time.,0,"artificial, change, intelligence"
-Online education is becoming more accessible worldwide.,1,"better, eating, wellbeing"
-Space exploration helps us understand the universe better.,2,"better, new, way"
-Running every morning boosts energy and focus.,1,"better, eating, wellbeing"
-Cooking at home is more affordable and healthier than eating out.,1,"better, eating, wellbeing"
-Social media impacts how we communicate daily.,2,"better, new, way"
-Photography allows people to capture meaningful moments.,2,"better, new, way"
-Artificial intelligence can automate repetitive tasks efficiently.,0,"artificial, change, intelligence"
-Teamwork and collaboration lead to better project outcomes.,1,"better, eating, wellbeing"
-Mindfulness and meditation reduce stress effectively.,1,"better, eating, wellbeing"
-Electric cars are becoming more common due to environmental concerns.,2,"better, new, way"
+clean_text, topic_id, topic_keywords, dominant_emotion, emotion_score
+The delivery was very late and I am angry.
+Customer support was very helpful and friendly.
+Prices are too high for the quality.
+The app interface is confusing and frustrating.
+Great experience with customer service.
+Food quality has improved a lot recently.
+AI features are impressive and useful.
+The system's intelligence keeps improving.
+

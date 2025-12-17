@@ -1,36 +1,45 @@
-import argparse
 import pandas as pd
+import argparse
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 
 
-def run(input_path, output_path, n_topics=3):
+def run(input_path: str, output_path: str, n_topics: int):
     print(f"Loading input file: {input_path}")
     df = pd.read_csv(input_path)
 
-    texts = df["clean_text"].astype(str).tolist()
+    if "clean_text" not in df.columns:
+        raise ValueError("Input file must contain 'clean_text' column")
 
-    vectorizer = CountVectorizer(stop_words="english", max_df=0.9, min_df=1)
+    texts = df["clean_text"].astype(str)
+
+    print("Vectorizing text data...")
+    vectorizer = CountVectorizer(stop_words="english", max_df=0.95, min_df=1)
     X = vectorizer.fit_transform(texts)
 
+    print(f"Fitting LDA model with {n_topics} topics...")
     lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
-    lda.fit(X)
+    topic_probs = lda.fit_transform(X)
 
-    topic_ids = lda.transform(X).argmax(axis=1)
-    df["topic_id"] = topic_ids
+    print("Assigning topics to documents...")
+    df["topic_id"] = topic_probs.argmax(axis=1)
 
-    words = vectorizer.get_feature_names_out()
+    print("Extracting topic keywords...")
+    feature_names = vectorizer.get_feature_names_out()
 
-    def topic_label(topic_weights, top_n=3):
-        top_words = sorted([words[i] for i in topic_weights.argsort()[-top_n:]])
-        return ", ".join(top_words)
+    topic_keywords = {}
+    for topic_idx, topic in enumerate(lda.components_):
+        top_words = [feature_names[i] for i in topic.argsort()[:-4:-1]]
+        topic_keywords[topic_idx] = ", ".join(top_words)
 
-    labels = {i: topic_label(topic) for i, topic in enumerate(lda.components_)}
+    df["topic_keywords"] = df["topic_id"].map(topic_keywords)
 
-    df["topic_label"] = df["topic_id"].map(labels)
+    output_df = df[["clean_text", "topic_id", "topic_keywords"]]
 
-    df[["clean_text", "topic_id", "topic_label"]].to_csv(output_path, index=False)
-    print(f"Saved: {output_path}")
+    print(f"Saving output to: {output_path}")
+    output_df.to_csv(output_path, index=False)
+
+    print("Topic modeling completed successfully.")
 
 
 if __name__ == "__main__":
@@ -38,6 +47,6 @@ if __name__ == "__main__":
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--n_topics", type=int, default=3)
-    args = parser.parse_args()
 
+    args = parser.parse_args()
     run(args.input, args.output, args.n_topics)

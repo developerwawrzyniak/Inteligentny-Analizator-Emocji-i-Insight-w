@@ -58,7 +58,7 @@ def build_topic_emotion_table(df):
             "topic_label": "Topic",
             "dominant_emotion": "Dominant Emotion",
             "avg_intensity_display": "Avg Intensity",
-            "percentage_display": "% Reviews",
+            "percentage_display": "Reviews %",
             "example_insight": "Example Insight",
         }
     )

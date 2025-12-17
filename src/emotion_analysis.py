@@ -1,49 +1,54 @@
-import argparse
 import pandas as pd
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import argparse
 import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
 
-nltk.download("vader_lexicon")
+# ensure lexicon exists
+nltk.download("vader_lexicon", quiet=True)
+
+sia = SentimentIntensityAnalyzer()
 
 
-def sentiment_to_emotion(score):
+def detect_emotion(text: str):
+    score = sia.polarity_scores(text)["compound"]
+
     if score >= 0.4:
-        return "joy"
-    elif score >= 0.1:
-        return "positive"
+        emotion = "joy"
     elif score <= -0.4:
-        return "anger"
-    elif score <= -0.1:
-        return "sadness"
+        emotion = "anger"
     else:
-        return "neutral"
+        emotion = "neutral"
+
+    intensity = round(abs(score), 2)
+    return emotion, intensity
 
 
-def run(input_path, output_path):
-    print(f"Loading: {input_path}")
+def run(input_path: str, output_path: str):
+    print(f"Loading file: {input_path}")
     df = pd.read_csv(input_path)
 
-    sia = SentimentIntensityAnalyzer()
+    required_cols = {"clean_text", "topic_id", "topic_keywords"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError(f"Missing required columns: {required_cols}")
 
-    emotions = []
-    intensities = []
+    print("Analyzing emotions...")
+    emotions = df["clean_text"].astype(str).apply(detect_emotion)
 
-    for text in df["clean_text"]:
-        score = sia.polarity_scores(str(text))["compound"]
-        emotions.append(sentiment_to_emotion(score))
-        intensities.append(abs(score))
+    df["emotion"] = emotions.apply(lambda x: x[0])
+    df["intensity"] = emotions.apply(lambda x: x[1])
 
-    df["dominant_emotion"] = emotions
-    df["emotion_intensity"] = intensities
+    output_cols = ["clean_text", "topic_id", "topic_keywords", "emotion", "intensity"]
 
-    df.to_csv(output_path, index=False)
-    print(f"Saved: {output_path}")
+    print(f"Saving output to: {output_path}")
+    df[output_cols].to_csv(output_path, index=False)
+
+    print("Emotion analysis completed.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
-    args = parser.parse_args()
 
+    args = parser.parse_args()
     run(args.input, args.output)
