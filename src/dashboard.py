@@ -25,10 +25,15 @@ emotion_chart = px.bar(
     y="percent_reviews",
     color="dominant_emotion",
     title="Emotion Distribution by Topic (%)",
+    template="plotly_dark",  # Dark background
 )
 
 topic_chart = px.bar(
-    df, x="topic", y="percent_reviews", title="Topic Importance (% of Reviews)"
+    df,
+    x="topic",
+    y="percent_reviews",
+    title="Topic Importance (% of Reviews)",
+    template="plotly_dark",
 )
 
 # =========================
@@ -37,7 +42,12 @@ topic_chart = px.bar(
 app = dash.Dash(__name__)
 
 app.layout = html.Div(
-    style={"padding": "20px", "fontFamily": "Arial"},
+    style={
+        "padding": "20px",
+        "fontFamily": "Arial",
+        "backgroundColor": "black",  # Set main background
+        "color": "white",
+    },  # Text color
     children=[
         html.H1("Customer Feedback – Topic & Emotion Insights"),
         html.Hr(),
