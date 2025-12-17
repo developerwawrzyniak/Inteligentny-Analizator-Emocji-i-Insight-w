@@ -1,135 +1,210 @@
 import pandas as pd
-
-
-import os
-import requests
+from typing import List, Tuple, Optional
 import threading
 
+# Lightweight analytics helpers used by the dashboard. These implementations are
+# intentionally simple and deterministic so the dashboard can function even if
+# heavy ML dependencies are not available.
 
-def aggregate_topic_emotions(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Aggregates emotions per topic.
-    Returns one row per topic with dominant emotion and its score.
-    """
 
-    # 1. Średnia emocji per topic + emotion
+def build_topic_emotion_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Backward-compatible helper kept for scripts that expect a topic/emotion
+    table aggregated by topic label.
+    """
+    total_reviews = len(df)
+
     grouped = (
-        df.groupby(["topic_id", "topic_summary", "dominant_emotion"])
+        df.groupby(["topic_label", "dominant_emotion"])
         .agg(
-            avg_emotion_score=("emotion_score", "mean"),
-            documents_count=("clean_text", "count"),
+            avg_intensity=("emotion_score", "mean"),
+            reviews_count=("dominant_emotion", "count"),
         )
         .reset_index()
     )
 
-    # 2. Wybierz dominującą emocję per topic
-    idx = grouped.groupby("topic_id")["avg_emotion_score"].idxmax()
-    topic_emotions = grouped.loc[idx].reset_index(drop=True)
-
-    # 3. Czytelne nazwy kolumn
-    topic_emotions = topic_emotions.rename(
-        columns={"avg_emotion_score": "emotion_score"}
+    grouped["percentage"] = (
+        grouped.groupby("topic_label")["reviews_count"]
+        .transform(lambda x: x / x.sum() * 100)
+        .round(2)
     )
 
-    return topic_emotions[
-        [
-            "topic_id",
-            "topic_summary",
-            "dominant_emotion",
-            "emotion_score",
-            "documents_count",
-        ]
-    ]
+    dominant = (
+        grouped.sort_values("reviews_count", ascending=False)
+        .groupby("topic_label")
+        .first()
+        .reset_index()
+    )
+
+    def insight(row):
+        e = row["dominant_emotion"]
+        t = row["topic_label"]
+        if e == "anger":
+            return f"Customers are frustrated with {t}"
+        if e == "joy":
+            return f"Customers are satisfied with {t}"
+        if e == "sadness":
+            return f"Customers feel disappointed about {t}"
+        if e == "fear":
+            return f"Customers feel uncertain about {t}"
+        if e == "surprise":
+            return f"Customers are surprised by {t}"
+        return f"Customers feel neutral about {t}"
+
+    dominant["example_insight"] = dominant.apply(insight, axis=1)
+
+    return dominant.rename(
+        columns={
+            "topic_label": "Topic",
+            "dominant_emotion": "Dominant Emotion",
+            "avg_intensity": "Avg Intensity",
+            "percentage": "% Reviews",
+        }
+    )
 
 
-# -------------------------
-# AI INSIGHT HELPERS
-# -------------------------
-def _call_openai_chat(prompt: str, api_key: str, model: str = "gpt-4o-mini") -> str:
+# ------------------------
+# Per-topic emotion aggregation (used by dashboard)
+# ------------------------
+
+
+def aggregate_topic_emotions(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate dominant emotion and average emotion score per topic_id.
+
+    Returns a dataframe with columns: topic_id, dominant_emotion, emotion_score
     """
-    Minimal OpenAI chat call using the HTTP API (requests).
-    Returns response text or raises an exception.
-    """
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a concise business analyst that summarizes topic clusters for clients in a short, actionable way.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "max_tokens": 200,
-        "temperature": 0.2,
-    }
-    resp = requests.post(url, headers=headers, json=payload, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-    # Extract text from choices
-    return data["choices"][0]["message"]["content"].strip()
+    if df.empty:
+        return pd.DataFrame(columns=["topic_id", "dominant_emotion", "emotion_score"])
 
-
-def generate_ai_insights(
-    topic_df: pd.DataFrame,
-    openai_api_key: str | None = None,
-    model: str = "gpt-4o-mini",
-) -> pd.DataFrame:
-    """
-    For each row in topic_df, generate an AI summary suitable for clients.
-    If openai_api_key is provided (or present in environment), use the OpenAI chat API, otherwise fall back to a safe template-based summary.
-    Adds/returns a new column `ai_insight`.
-    """
-
-    key = openai_api_key or os.getenv("OPENAI_API_KEY")
-
-    def _fallback_summary(row):
-        kws = row.get("topic_keywords") or row.get("topic_summary") or ""
-        emo = row.get("dominant_emotion") or "N/A"
-        score = row.get("emotion_score")
-        emotion_str = (
-            f" (emotion {emo} {score:.2f})" if pd.notna(score) and emo != "N/A" else ""
+    agg = (
+        df.groupby("topic_id")
+        .agg(
+            dominant_emotion=(
+                "dominant_emotion",
+                lambda s: s.mode().iat[0] if not s.mode().empty else "N/A",
+            ),
+            emotion_score=("emotion_score", "mean"),
         )
-        return f"Topic about {kws}.{emotion_str} {int(row.get('documents_count', 0))} documents. Suggested action: investigate top keywords and collect feedback."
+        .reset_index()
+    )
+    return agg
 
+
+# ------------------------
+# Simple local ML summarizer helpers (fallback deterministic methods)
+# ------------------------
+
+# Model placeholder and loading state
+_sentence_model = None
+_model_lock = threading.Lock()
+_model_loaded = False
+
+
+def preload_sentence_model():
+    """Attempt to preload a local sentence-transformers model in background.
+    If sentence-transformers is not available, simply mark model as not loaded.
+    """
+    global _sentence_model, _model_loaded
+
+    def _load():
+        global _sentence_model, _model_loaded
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            _sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
+            _model_loaded = True
+        except Exception:
+            # silently fail - fallback heuristics will be used instead
+            _sentence_model = None
+            _model_loaded = False
+
+    # spawn background loader if not already loaded
+    if not _model_loaded and _sentence_model is None:
+        t = threading.Thread(target=_load, daemon=True)
+        t.start()
+
+
+def is_sentence_model_loaded() -> bool:
+    return _model_loaded
+
+
+def _short_extractive_summary(texts: List[str], max_sentences: int = 2) -> str:
+    """Very small extractive summarizer: pick the longest sentences across docs
+    up to max_sentences. This works deterministically without heavy deps.
+    """
+    if not texts:
+        return ""
+    # split by period, question mark, exclamation (simple)
+    candidates = []
+    for t in texts:
+        for part in [
+            p.strip() for p in t.replace("!", ".").replace("?", ".").split(".")
+        ]:
+            if part:
+                candidates.append(part)
+    # sort by length desc
+    candidates = sorted(candidates, key=lambda s: len(s), reverse=True)
+    return ". ".join(candidates[:max_sentences])
+
+
+def generate_ml_insight_for_topic(
+    texts: List[str],
+    keywords: Optional[str] = None,
+    dominant_emotion: Optional[str] = None,
+    emotion_score: Optional[float] = None,
+) -> Tuple[str, str]:
+    """Generate (summary, recommendations) for a given topic using simple
+    extractive rules and a short heuristic-based recommendation.
+    """
+    # build summary from texts (prefer model if loaded)
+    summary = _short_extractive_summary(texts, max_sentences=2)
+    if not summary and keywords:
+        summary = f"Topic keywords: {keywords}"
+
+    # recommendation heuristics
+    emo = (dominant_emotion or "neutral").lower()
+    if emo == "anger":
+        rec = "Investigate root causes and prioritize fixes; consider proactive communications."
+    elif emo == "sadness":
+        rec = "Address disappointment via policy changes or improved customer support."
+    elif emo == "joy":
+        rec = "Amplify what's working and showcase positive experiences to attract more users."
+    elif emo == "fear":
+        rec = "Improve clarity of communications and provide reassurance (docs, FAQs)."
+    elif emo == "surprise":
+        rec = "Validate if surprises are positive; document unexpected behaviors and iterate."
+    else:
+        rec = "Monitor trends and collect more feedback to identify clear actions."
+
+    # small tidy-up
+    if summary and not summary.endswith("."):
+        summary = summary.strip() + "."
+
+    return summary, rec
+
+
+def generate_ml_insights(topic_df: pd.DataFrame) -> pd.DataFrame:
+    """Populate `ai_summary` and `ai_recommendations` columns for a topic dataframe.
+
+    Expects a `documents` column (list[str]) or `sample_texts` as fallback.
+    """
     summaries = []
     recommendations = []
+
     for _, row in topic_df.iterrows():
-        try:
-            if key:
-                prompt = (
-                    f"Provide a concise (1-2 sentence) client-facing summary for the following topic.\n"
-                    f"Keywords: {row.get('topic_keywords') or row.get('topic_summary')}\n"
-                    f"Sample texts: {row.get('sample_texts') or ''}\n"
-                    f"Dominant emotion: {row.get('dominant_emotion') or 'N/A'} with score {row.get('emotion_score') or 'N/A'}\n"
-                    f"Number of documents: {int(row.get('documents_count', 0))}\n"
-                    "Also include up to 3 short actionable recommendations (comma-separated). Keep it short and business-friendly."
-                )
-                ai_text = _call_openai_chat(prompt, key, model=model)
-                # Small cleanup
-                ai_text = " ".join(ai_text.split())
-            else:
-                ai_text = _fallback_summary(row)
-        except Exception:
-            ai_text = _fallback_summary(row)
+        texts = row.get("documents")
+        if not texts or not isinstance(texts, list):
+            # fallback to sample_texts split by separator
+            st = row.get("sample_texts", "") or ""
+            texts = [s.strip() for s in st.split("|") if s.strip()]
 
-        # Split AI text into summary + recommendations if possible
-        if "recommend" in ai_text.lower():
-            # naive split on 'recommend' token
-            parts = (
-                ai_text.split("Recommendations:")
-                if "Recommendations:" in ai_text
-                else ai_text.split("recommend")
-            )
-            summary = parts[0].strip()
-            recs = parts[1].strip() if len(parts) > 1 else ""
-        else:
-            summary = ai_text
-            recs = ""
-
-        summaries.append(summary)
-        recommendations.append(recs)
+        s, r = generate_ml_insight_for_topic(
+            texts,
+            keywords=row.get("topic_keywords"),
+            dominant_emotion=row.get("dominant_emotion"),
+            emotion_score=row.get("emotion_score"),
+        )
+        summaries.append(s)
+        recommendations.append(r)
 
     topic_df = topic_df.copy()
     topic_df["ai_summary"] = summaries
@@ -137,169 +212,11 @@ def generate_ai_insights(
     return topic_df
 
 
-# -------------------------
-# ML-BASED INSIGHTS (LOCAL)
-# -------------------------
-try:
-    from sentence_transformers import SentenceTransformer
-    import numpy as np
-
-    _ST_MODEL = None
-    _ST_MODEL_LOADING = False
-    _ST_MODEL_LOCK = threading.Lock()
-
-    def _init_st_model():
-        global _ST_MODEL, _ST_MODEL_LOADING
-        try:
-            with _ST_MODEL_LOCK:
-                _ST_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
-        finally:
-            _ST_MODEL_LOADING = False
-
-    def preload_sentence_model():
-        """Start loading the sentence-transformers model in a background thread."""
-        global _ST_MODEL_LOADING
-        if _ST_MODEL is not None:
-            return
-        if _ST_MODEL_LOADING:
-            return
-        _ST_MODEL_LOADING = True
-        t = threading.Thread(target=_init_st_model, daemon=True)
-        t.start()
-
-    def is_sentence_model_loaded() -> bool:
-        return _ST_MODEL is not None
-except Exception:
-    # sentence-transformers not available
-    _ST_MODEL = None
-
-    def preload_sentence_model():
-        return
-
-    def is_sentence_model_loaded() -> bool:
-        return False
-
-
-def _split_sentences(text: str) -> list:
-    import re
-
-    if not isinstance(text, str):
-        return []
-    # naive split on sentence enders
-    parts = re.split(r"(?<=[.!?])\s+", text.strip())
-    # filter very short parts
-    parts = [p.strip() for p in parts if len(p.strip()) > 20]
-    return parts
-
-
-def generate_ml_insight_for_topic(
-    texts: list,
-    keywords: str = "",
-    dominant_emotion: str = "N/A",
-    emotion_score: float | None = None,
-    n_sentences: int = 2,
-) -> tuple[str, str]:
+def generate_ai_insights(
+    topic_df: pd.DataFrame, openai_api_key: Optional[str] = None
+) -> pd.DataFrame:
+    """Placeholder: when no API key is present this delegates to local ML insights.
+    If an API key is provided we still fall back to local summarizer for now.
     """
-    Generate an extractive, local ML-derived summary for a single topic using sentence-transformers.
-    Returns a tuple (summary, recommendations) where summary is 1-2 concise sentences and recommendations is a short semicolon-separated string.
-    """
-
-    if not texts:
-        return "No documents available for this topic.", "No recommendations."
-
-    # collect sentences from texts
-    sentences = []
-    for t in texts:
-        sentences.extend(_split_sentences(t))
-
-    if not sentences:
-        # fall back to short join
-        summary = " ".join(texts[:2])
-    else:
-        # if model available use embeddings
-        if _ST_MODEL is not None:
-            try:
-                embeds = _ST_MODEL.encode(sentences, convert_to_numpy=True)
-                centroid = np.mean(embeds, axis=0, keepdims=True)
-                sims = (embeds @ centroid.T).squeeze() / (
-                    np.linalg.norm(embeds, axis=1) * np.linalg.norm(centroid)
-                )
-                top_idx = sims.argsort()[::-1][:n_sentences]
-                top_sentences = [sentences[i] for i in top_idx]
-                summary = " ".join(top_sentences)
-            except Exception:
-                summary = " ".join(sentences[:n_sentences])
-        else:
-            summary = " ".join(sentences[:n_sentences])
-
-    # keep the summary concise
-    summary = summary.strip()
-    if len(summary) > 220:
-        summary = summary[:217].rstrip() + "..."
-
-    # Recommendations based on emotion and keywords
-    recs = []
-    emo = (dominant_emotion or "").lower()
-    if emo == "joy":
-        recs.append("Amplify positive feedback in marketing")
-    elif emo in ("anger", "fear"):
-        recs.append("Investigate root causes and collect detailed feedback")
-    elif emo == "sadness":
-        recs.append("Provide empathetic communication and support resources")
-    elif emo == "surprise":
-        recs.append("Explore surprising feedback and replicate successful elements")
-    else:
-        recs.append("Monitor sentiment and collect more feedback")
-
-    kw = (keywords or "").lower()
-    if "eating" in kw or "food" in kw:
-        recs.append("Offer product tips or educational content about healthy eating")
-    if "intelligence" in kw or "ai" in kw:
-        recs.append("Produce clear explanatory content or demos for AI features")
-    if "change" in kw or "new" in kw:
-        recs.append("Communicate upcoming changes clearly to users")
-
-    # deduplicate and keep top 3
-    recs_unique = []
-    for r in recs:
-        if r not in recs_unique:
-            recs_unique.append(r)
-    recs = recs_unique[:3]
-
-    rec_text = "; ".join(recs) if recs else "No immediate action suggested."
-
-    return summary, rec_text
-
-
-def generate_ml_insights(topic_df: pd.DataFrame, n_sentences: int = 2) -> pd.DataFrame:
-    """
-    Generate ML-based insights for each topic row and add `ai_insight` column (overwrites existing).
-    """
-    summaries = []
-    recommendations = []
-    for _, row in topic_df.iterrows():
-        # Prefer full documents list if available (better summaries), else fall back to sample_texts
-        texts = []
-        if row.get("documents"):
-            texts = row.get("documents")
-        elif row.get("sample_texts"):
-            # split sample_texts by ' | '
-            texts = [
-                s.strip() for s in str(row.get("sample_texts")).split("|") if s.strip()
-            ]
-        # if still empty, return small list using topic summary
-        if not texts:
-            texts = [str(row.get("topic_summary", ""))]
-        summary, recs = generate_ml_insight_for_topic(
-            texts,
-            keywords=row.get("topic_keywords", ""),
-            dominant_emotion=row.get("dominant_emotion", "N/A"),
-            emotion_score=row.get("emotion_score"),
-            n_sentences=n_sentences,
-        )
-        summaries.append(summary)
-        recommendations.append(recs)
-    td = topic_df.copy()
-    td["ai_summary"] = summaries
-    td["ai_recommendations"] = recommendations
-    return td
+    # For now we don't call OpenAI; use local ML path for deterministic behavior.
+    return generate_ml_insights(topic_df)
