@@ -19,7 +19,7 @@ def run(input_path: str, output_path: str):
 
     total_reviews = len(df)
 
-    grouped = df.groupby("topic_keywords")
+    grouped = df.groupby("topic")
 
     rows = []
 

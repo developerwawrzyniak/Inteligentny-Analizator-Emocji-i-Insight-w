@@ -1,4 +1,4 @@
 topic,dominant_emotion,avg_intensity,percent_reviews,example_insight
-"customer, quality, lot",joy,0.65,50,"Customers feel positive about customer, quality, lot"
-"quality, interface, app",neutral,0.0,38,"Customers feel neutral about quality, interface, app"
-"useful, ai, features",joy,0.74,12,"Customers feel positive about useful, ai, features"
+Technology & Innovation,joy,0.65,50,Customers feel positive about Technology & Innovation
+Lifestyle & Experiences,neutral,0.0,38,Customers feel neutral about Lifestyle & Experiences
+Customer Satisfaction & Quality,joy,0.74,12,Customers feel positive about Customer Satisfaction & Quality

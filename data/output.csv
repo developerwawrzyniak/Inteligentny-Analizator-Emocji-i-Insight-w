@@ -1,10 +1,9 @@
-clean_text, topic_id, topic_keywords, dominant_emotion, emotion_score
-The delivery was very late and I am angry.
-Customer support was very helpful and friendly.
-Prices are too high for the quality.
-The app interface is confusing and frustrating.
-Great experience with customer service.
-Food quality has improved a lot recently.
-AI features are impressive and useful.
-The system's intelligence keeps improving.
-
+clean_text,topic_id,topic
+The delivery was very late and I am angry.,0,Technology & Innovation
+Customer support was very helpful and friendly.,0,Technology & Innovation
+Prices are too high for the quality.,2,Lifestyle & Experiences
+The app interface is confusing and frustrating.,2,Lifestyle & Experiences
+Great experience with customer service.,0,Technology & Innovation
+Food quality has improved a lot recently.,0,Technology & Innovation
+AI features are impressive and useful.,1,Customer Satisfaction & Quality
+The system's intelligence keeps improving.,2,Lifestyle & Experiences

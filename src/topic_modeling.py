@@ -3,6 +3,11 @@ import argparse
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 
+TOPIC_NAME_MAP = {
+0: "Technology & Innovation",
+1: "Customer Satisfaction & Quality",
+2: "Lifestyle & Experiences"
+}
 
 def run(input_path: str, output_path: str, n_topics: int):
     print(f"Loading input file: {input_path}")
@@ -21,20 +26,13 @@ def run(input_path: str, output_path: str, n_topics: int):
     lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
     topic_probs = lda.fit_transform(X)
 
-    print("Assigning topics to documents...")
+    print("Assigning topic ids to documents...")
     df["topic_id"] = topic_probs.argmax(axis=1)
 
-    print("Extracting topic keywords...")
-    feature_names = vectorizer.get_feature_names_out()
+    print("Assigning topics...")
+    df["topic"] = df["topic_id"].map(TOPIC_NAME_MAP)
 
-    topic_keywords = {}
-    for topic_idx, topic in enumerate(lda.components_):
-        top_words = [feature_names[i] for i in topic.argsort()[:-4:-1]]
-        topic_keywords[topic_idx] = ", ".join(top_words)
-
-    df["topic_keywords"] = df["topic_id"].map(topic_keywords)
-
-    output_df = df[["clean_text", "topic_id", "topic_keywords"]]
+    output_df = df[["clean_text", "topic_id", "topic"]]
 
     print(f"Saving output to: {output_path}")
     output_df.to_csv(output_path, index=False)
