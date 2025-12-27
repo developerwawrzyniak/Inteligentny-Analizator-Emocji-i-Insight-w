@@ -1,21 +1,9 @@
-clean_text,topic_id,topic_label,dominant_emotion,emotion_score
-I love reading books about science and technology.,1,"better, eating, wellbeing",joy,0.99
-Artificial intelligence is transforming the world.,0,"artificial, change, intelligence",neutral,0.72
-Yesterday I went hiking in the mountains and it was amazing.,1,"better, eating, wellbeing",neutral,0.5
-Python programming is very popular among data scientists.,0,"artificial, change, intelligence",neutral,0.49
-Traveling to new countries is a great way to learn about cultures.,2,"better, new, way",joy,0.69
-Healthy eating habits improve overall wellbeing.,1,"better, eating, wellbeing",neutral,0.6
-Music has the power to change our mood instantly.,2,"better, new, way",neutral,0.9
-The new movie received excellent reviews from critics.,2,"better, new, way",joy,0.95
-Learning a new language opens up many opportunities.,0,"artificial, change, intelligence",neutral,0.77
-Climate change is one of the biggest challenges of our time.,0,"artificial, change, intelligence",neutral,0.47
-Online education is becoming more accessible worldwide.,1,"better, eating, wellbeing",neutral,0.91
-Space exploration helps us understand the universe better.,2,"better, new, way",neutral,0.87
-Running every morning boosts energy and focus.,1,"better, eating, wellbeing",neutral,0.87
-Cooking at home is more affordable and healthier than eating out.,1,"better, eating, wellbeing",neutral,0.58
-Social media impacts how we communicate daily.,2,"better, new, way",neutral,0.9
-Photography allows people to capture meaningful moments.,2,"better, new, way",neutral,0.62
-Artificial intelligence can automate repetitive tasks efficiently.,0,"artificial, change, intelligence",neutral,0.93
-Teamwork and collaboration lead to better project outcomes.,1,"better, eating, wellbeing",neutral,0.78
-Mindfulness and meditation reduce stress effectively.,1,"better, eating, wellbeing",neutral,0.77
-Electric cars are becoming more common due to environmental concerns.,2,"better, new, way",neutral,0.85
+clean_text,topic_id,topic,emotion,intensity
+The delivery was very late and I am angry.,0,Technology & Innovation,anger,0.51
+Customer support was very helpful and friendly.,0,Technology & Innovation,joy,0.85
+Prices are too high for the quality.,2,Lifestyle & Experiences,neutral,0.0
+The app interface is confusing and frustrating.,2,Lifestyle & Experiences,anger,0.59
+Great experience with customer service.,0,Technology & Innovation,joy,0.62
+Food quality has improved a lot recently.,0,Technology & Innovation,joy,0.48
+AI features are impressive and useful.,1,Customer Satisfaction & Quality,joy,0.74
+The system's intelligence keeps improving.,2,Lifestyle & Experiences,joy,0.71

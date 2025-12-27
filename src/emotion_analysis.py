@@ -27,7 +27,7 @@ def run(input_path: str, output_path: str):
     print(f"Loading file: {input_path}")
     df = pd.read_csv(input_path)
 
-    required_cols = {"clean_text", "topic_id", "topic_keywords"}
+    required_cols = {"clean_text", "topic_id", "topic"}
     if not required_cols.issubset(df.columns):
         raise ValueError(f"Missing required columns: {required_cols}")
 
@@ -37,7 +37,7 @@ def run(input_path: str, output_path: str):
     df["emotion"] = emotions.apply(lambda x: x[0])
     df["intensity"] = emotions.apply(lambda x: x[1])
 
-    output_cols = ["clean_text", "topic_id", "topic_keywords", "emotion", "intensity"]
+    output_cols = ["clean_text", "topic_id", "topic", "emotion", "intensity"]
 
     print(f"Saving output to: {output_path}")
     df[output_cols].to_csv(output_path, index=False)
