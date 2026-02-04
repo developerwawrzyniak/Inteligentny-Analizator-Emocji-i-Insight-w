@@ -3,7 +3,7 @@ import base64
 
 import pandas as pd
 import dash
-from dash import html, dcc, dash_table, callback_context
+from dash import html, dcc, dash_table
 from dash.dependencies import Input, Output, State
 import plotly.express as px
 
@@ -33,7 +33,7 @@ app.layout = html.Div(
             html.P("Upload a CSV file with a 'clean_text' or 'text' column containing comments to analyze."),
             dcc.Upload(
                 id="upload-data",
-                children=html.Div([
+                children=html.Div(id="upload-text", children=[
                     "Drag and Drop or ",
                     html.A("Select a CSV File", style={"color": "#4dabf7", "cursor": "pointer"})
                 ]),
@@ -46,11 +46,18 @@ app.layout = html.Div(
                     "borderRadius": "10px",
                     "borderColor": "#4dabf7",
                     "textAlign": "center",
-                    "marginBottom": "20px",
+                    "marginBottom": "10px",
                     "backgroundColor": "#2a2a2a",
                 },
                 multiple=False,
             ),
+            # File upload feedback
+            html.Div(id="upload-feedback", style={
+                "marginBottom": "15px",
+                "padding": "10px",
+                "borderRadius": "5px",
+                "display": "none",
+            }),
             html.Div([
                 html.Label("Number of topics: ", style={"marginRight": "10px"}),
                 dcc.Input(
@@ -59,7 +66,7 @@ app.layout = html.Div(
                     value=3,
                     min=2,
                     max=10,
-                    style={"width": "60px", "marginRight": "20px"}
+                    style={"width": "60px", "marginRight": "20px", "padding": "5px"}
                 ),
                 html.Button(
                     "Analyze",
@@ -72,6 +79,7 @@ app.layout = html.Div(
                         "padding": "10px 20px",
                         "borderRadius": "5px",
                         "cursor": "pointer",
+                        "fontSize": "16px",
                     }
                 ),
             ], style={"marginBottom": "20px"}),
@@ -108,6 +116,43 @@ app.layout = html.Div(
         dcc.Store(id="processed-data"),
     ],
 )
+
+
+@app.callback(
+    [Output("upload-feedback", "children"),
+     Output("upload-feedback", "style")],
+    [Input("upload-data", "filename"),
+     Input("upload-data", "contents")],
+    prevent_initial_call=True,
+)
+def show_upload_feedback(filename, contents):
+    """Show feedback when a file is uploaded."""
+    if filename is None:
+        return "", {"display": "none"}
+
+    # Try to get row count
+    row_info = ""
+    if contents:
+        try:
+            content_type, content_string = contents.split(",")
+            decoded = base64.b64decode(content_string)
+            df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
+            row_info = f" ({len(df)} rows)"
+        except:
+            pass
+
+    return [
+        html.Span("File loaded: ", style={"fontWeight": "bold"}),
+        html.Span(f"{filename}{row_info}", style={"color": "#69db7c"}),
+        html.Span(" - Ready to analyze!", style={"marginLeft": "10px", "color": "#adb5bd"}),
+    ], {
+        "marginBottom": "15px",
+        "padding": "10px",
+        "borderRadius": "5px",
+        "display": "block",
+        "backgroundColor": "#2a2a2a",
+        "border": "1px solid #69db7c",
+    }
 
 
 def parse_csv(contents, filename):
