@@ -3,34 +3,59 @@ import argparse
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 
-TOPIC_NAME_MAP = {
-0: "Technology & Innovation",
-1: "Customer Satisfaction & Quality",
-2: "Lifestyle & Experiences"
-}
 
-def run(input_path: str, output_path: str, n_topics: int):
-    print(f"Loading input file: {input_path}")
-    df = pd.read_csv(input_path)
+def generate_topic_names(lda_model, vectorizer, n_words=3):
+    """Generate human-readable topic names from top words."""
+    feature_names = vectorizer.get_feature_names_out()
+    topic_names = {}
 
+    for topic_idx, topic in enumerate(lda_model.components_):
+        top_words = [feature_names[i] for i in topic.argsort()[:-n_words - 1:-1]]
+        topic_names[topic_idx] = " & ".join(word.title() for word in top_words)
+
+    return topic_names
+
+
+def process_topics(df: pd.DataFrame, n_topics: int = 3) -> pd.DataFrame:
+    """Process a DataFrame and add topic assignments.
+
+    Args:
+        df: DataFrame with 'clean_text' column
+        n_topics: Number of topics to extract
+
+    Returns:
+        DataFrame with added 'topic_id' and 'topic' columns
+    """
     if "clean_text" not in df.columns:
-        raise ValueError("Input file must contain 'clean_text' column")
+        raise ValueError("DataFrame must contain 'clean_text' column")
 
     texts = df["clean_text"].astype(str)
 
-    print("Vectorizing text data...")
+    # Vectorize text
     vectorizer = CountVectorizer(stop_words="english", max_df=0.95, min_df=1)
     X = vectorizer.fit_transform(texts)
 
-    print(f"Fitting LDA model with {n_topics} topics...")
+    # Fit LDA model
     lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
     topic_probs = lda.fit_transform(X)
 
-    print("Assigning topic ids to documents...")
-    df["topic_id"] = topic_probs.argmax(axis=1)
+    # Generate topic names from model
+    topic_names = generate_topic_names(lda, vectorizer)
 
-    print("Assigning topics...")
-    df["topic"] = df["topic_id"].map(TOPIC_NAME_MAP)
+    # Assign topics
+    df = df.copy()
+    df["topic_id"] = topic_probs.argmax(axis=1)
+    df["topic"] = df["topic_id"].map(topic_names)
+
+    return df
+
+
+def run(input_path: str, output_path: str, n_topics: int):
+    """Run topic modeling from file to file (CLI interface)."""
+    print(f"Loading input file: {input_path}")
+    df = pd.read_csv(input_path)
+
+    df = process_topics(df, n_topics)
 
     output_df = df[["clean_text", "topic_id", "topic"]]
 

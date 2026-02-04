@@ -10,6 +10,7 @@ sia = SentimentIntensityAnalyzer()
 
 
 def detect_emotion(text: str):
+    """Detect emotion and intensity from text using VADER sentiment."""
     score = sia.polarity_scores(text)["compound"]
 
     if score >= 0.4:
@@ -23,7 +24,29 @@ def detect_emotion(text: str):
     return emotion, intensity
 
 
+def process_emotions(df: pd.DataFrame) -> pd.DataFrame:
+    """Process a DataFrame and add emotion analysis.
+
+    Args:
+        df: DataFrame with 'clean_text' column
+
+    Returns:
+        DataFrame with added 'emotion' and 'intensity' columns
+    """
+    if "clean_text" not in df.columns:
+        raise ValueError("DataFrame must contain 'clean_text' column")
+
+    df = df.copy()
+    emotions = df["clean_text"].astype(str).apply(detect_emotion)
+
+    df["emotion"] = emotions.apply(lambda x: x[0])
+    df["intensity"] = emotions.apply(lambda x: x[1])
+
+    return df
+
+
 def run(input_path: str, output_path: str):
+    """Run emotion analysis from file to file (CLI interface)."""
     print(f"Loading file: {input_path}")
     df = pd.read_csv(input_path)
 
@@ -31,11 +54,7 @@ def run(input_path: str, output_path: str):
     if not required_cols.issubset(df.columns):
         raise ValueError(f"Missing required columns: {required_cols}")
 
-    print("Analyzing emotions...")
-    emotions = df["clean_text"].astype(str).apply(detect_emotion)
-
-    df["emotion"] = emotions.apply(lambda x: x[0])
-    df["intensity"] = emotions.apply(lambda x: x[1])
+    df = process_emotions(df)
 
     output_cols = ["clean_text", "topic_id", "topic", "emotion", "intensity"]
 
